@@ -68,6 +68,22 @@ def tao_am_thanh(van_ban):
     except Exception:
         return None
 
+# Hàm tự động lấy danh sách mô hình Gemini đang hoạt động thực tế từ API Key
+@st.cache_data(ttl=3600)
+def lay_danh_sach_model_kha_dung(key):
+    try:
+        c = genai.Client(api_key=key)
+        ds = []
+        for m in c.models.list():
+            ten = m.name.replace("models/", "")
+            if "gemini" in ten and "embedding" not in ten and "imagen" not in ten and "veo" not in ten and "aqa" not in ten:
+                ds.append(ten)
+        # Ưu tiên các dòng flash lên đầu để phản hồi nhanh nhất
+        ds.sort(key=lambda x: (0 if "flash" in x else 1, x), reverse=False)
+        return ds if ds else ["gemini-2.5-flash", "gemini-2.0-flash"]
+    except Exception:
+        return ["gemini-2.5-flash", "gemini-2.0-flash"]
+
 # 4. Khu vực nhập liệu 2 chiều (Gõ chữ hoặc Ghi âm trên Điện thoại & Máy tính)
 cau_hoi = st.chat_input("Nhập câu hỏi về du lịch, di tích, đặc sản Cố Đô...")
 audio_value = st.audio_input("🎤 Hoặc bấm vào biểu tượng Micro để nói câu hỏi:")
@@ -85,7 +101,7 @@ if audio_value is not None:
             except Exception:
                 st.error("⚠️ Chưa nghe rõ giọng nói, bạn vui lòng bấm ghi âm lại nhé.")
 
-# 5. Xử lý câu hỏi với bộ 3 mô hình mới nhất tự động dự phòng
+# 5. Xử lý câu hỏi bằng mô hình tự động phát hiện
 if cau_hoi:
     st.session_state.messages.append({"role": "user", "content": cau_hoi})
     with st.chat_message("user", avatar="👤"):
@@ -103,7 +119,7 @@ if cau_hoi:
                     for m in st.session_state.messages
                 ]
                 
-                cac_mo_hinh = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.1-pro-preview"]
+                cac_mo_hinh = lay_danh_sach_model_kha_dung(api_key)
                 response = None
                 loi_cuoi = ""
                 
@@ -117,13 +133,13 @@ if cau_hoi:
                                 temperature=0.7
                             )
                         )
-                        if response:
+                        if response and response.text:
                             break
                     except Exception as e_model:
                         loi_cuoi = str(e_model)
                         continue
                 
-                if not response:
+                if not response or not response.text:
                     raise Exception(loi_cuoi)
 
                 tra_loi = response.text
@@ -135,4 +151,4 @@ if cau_hoi:
                     if audio_stream:
                         st.audio(audio_stream, format="audio/mp3", autoplay=True)
             except Exception as e:
-                st.error(f"❌ Máy chủ đang bận, vui lòng thử lại sau vài giây. Chi tiết: {e}")
+                st.error(f"❌ Lỗi kết nối máy chủ AI: {e}")
