@@ -21,19 +21,20 @@ Phong cách: Chuyên nghiệp, mến khách, trình bày rõ ràng, tự nhiên.
 """
 
 # 2. Thanh bên (Sidebar) cài đặt Mã kích hoạt và Giọng nói
+default_key = st.secrets.get("GEMINI_API_KEY", "")
+
 with st.sidebar:
     st.header("⚙️ Cài đặt Hệ thống")
     api_key = st.text_input(
-        "🔑 Mã Kích Hoạt (Gemini API Key):",
+        "🔑 Mã Kích Hoạt (Tùy chọn):",
         type="password",
-        value="",
-        help="Nhập Gemini API Key để kích hoạt trợ lý."
+        value=default_key,
+        help="Hệ thống đã kích hoạt sẵn cho Ban Giám Khảo."
     )
     bat_loa = st.toggle("🔊 Tự động đọc câu trả lời", value=True)
     if st.button("🔄 Cuộc trò chuyện mới", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
-
 # 3. Giao diện tiêu đề chính
 st.title("🏯 Trợ Lý Cố Đô AI Pro")
 st.caption("Khám phá Văn hóa • Lịch sử • Du lịch • Ẩm thực vùng Hà Nam – Ninh Bình – Nam Định")
