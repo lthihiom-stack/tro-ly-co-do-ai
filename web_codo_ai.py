@@ -85,7 +85,7 @@ if audio_value is not None:
             except Exception:
                 st.error("⚠️ Chưa nghe rõ giọng nói, bạn vui lòng bấm ghi âm lại nhé.")
 
-# 5. Xử lý câu hỏi với cơ chế tự động chuyển mô hình dự phòng chống lỗi 503
+# 5. Xử lý câu hỏi với bộ 3 mô hình mới nhất tự động dự phòng
 if cau_hoi:
     st.session_state.messages.append({"role": "user", "content": cau_hoi})
     with st.chat_message("user", avatar="👤"):
@@ -103,8 +103,7 @@ if cau_hoi:
                     for m in st.session_state.messages
                 ]
                 
-                # Danh sách mô hình tự động dự phòng khi máy chủ quá tải (lỗi 503)
-                cac_mo_hinh = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-pro"]
+                cac_mo_hinh = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.1-pro-preview"]
                 response = None
                 loi_cuoi = ""
                 
