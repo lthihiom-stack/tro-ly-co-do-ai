@@ -20,7 +20,7 @@ Nhiệm vụ: Tư vấn lịch trình chi tiết, thuyết minh di tích lịch 
 Phong cách: Chuyên nghiệp, mến khách, trình bày rõ ràng, tự nhiên.
 """
 
-# 2. Thanh bên (Sidebar) cài đặt Mã kích hoạt và Giọng nói
+# 2. Tự động lấy mã kích hoạt từ hệ thống bảo mật Streamlit Secrets
 default_key = st.secrets.get("GEMINI_API_KEY", "")
 
 with st.sidebar:
@@ -35,26 +35,25 @@ with st.sidebar:
     if st.button("🔄 Cuộc trò chuyện mới", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
+
 # 3. Giao diện tiêu đề chính
 st.title("🏯 Trợ Lý Cố Đô AI Pro")
 st.caption("Khám phá Văn hóa • Lịch sử • Du lịch • Ẩm thực vùng Hà Nam – Ninh Bình – Nam Định")
 
 if not api_key:
-    st.warning("⚠️ Vui lòng mở menu bên trái (mũi tên góc trên bên trái) và nhập Mã Kích Hoạt để bắt đầu.")
+    st.warning("⚠️ Hệ thống chưa có Mã Kích Hoạt. Vui lòng mở menu bên trái (>) để nhập mã.")
     st.stop()
 
-# Khởi tạo lịch sử chat
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Xin chào! Mình là **Trợ lý Cố Đô AI**. Bạn có thể gõ câu hỏi bên dưới hoặc bấm vào biểu tượng **Micro** để nói chuyện trực tiếp với mình nhé!"}
     ]
 
-# Hiển thị toàn bộ lịch sử trò chuyện
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar="🏯" if msg["role"] == "assistant" else "👤"):
         st.markdown(msg["content"])
 
-# Hàm chuyển văn bản thành âm thanh MP3 trong bộ nhớ
+# Hàm tạo âm thanh giọng đọc tiếng Việt
 def tao_am_thanh(van_ban):
     try:
         van_ban_sach = re.sub(r'[*#_`>-]', ' ', van_ban)
@@ -69,14 +68,11 @@ def tao_am_thanh(van_ban):
     except Exception:
         return None
 
-# 4. Khu vực nhập liệu 2 chiều (Gõ chữ hoặc Ghi âm trên Điện thoại/Máy tính)
+# 4. Khu vực nhập liệu 2 chiều (Gõ chữ hoặc Ghi âm trên Điện thoại & Máy tính)
 cau_hoi = st.chat_input("Nhập câu hỏi về du lịch, di tích, đặc sản Cố Đô...")
-
-# Tính năng ghi âm bằng Micro của trình duyệt điện thoại & máy tính
 audio_value = st.audio_input("🎤 Hoặc bấm vào biểu tượng Micro để nói câu hỏi:")
 
 if audio_value is not None:
-    # Kiểm tra tránh xử lý lặp lại cùng một đoạn ghi âm
     audio_bytes = audio_value.getvalue()
     if st.session_state.get("last_audio") != audio_bytes:
         st.session_state.last_audio = audio_bytes
@@ -89,7 +85,7 @@ if audio_value is not None:
             except Exception:
                 st.error("⚠️ Chưa nghe rõ giọng nói, bạn vui lòng bấm ghi âm lại nhé.")
 
-# 5. Xử lý câu hỏi và phản hồi
+# 5. Xử lý câu hỏi với cơ chế tự động chuyển mô hình dự phòng chống lỗi 503
 if cau_hoi:
     st.session_state.messages.append({"role": "user", "content": cau_hoi})
     with st.chat_message("user", avatar="👤"):
@@ -99,7 +95,6 @@ if cau_hoi:
         with st.spinner("Trợ lý Cố Đô AI đang suy nghĩ..."):
             try:
                 client = genai.Client(api_key=api_key)
-                # Gửi kèm ngữ cảnh cuộc trò chuyện
                 noi_dung_gui = [
                     types.Content(
                         role="user" if m["role"] == "user" else "model",
@@ -107,22 +102,38 @@ if cau_hoi:
                     )
                     for m in st.session_state.messages
                 ]
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=noi_dung_gui,
-                    config=types.GenerateContentConfig(
-                        system_instruction=CHI_DAN_HE_THONG,
-                        temperature=0.7
-                    )
-                )
+                
+                # Danh sách mô hình tự động dự phòng khi máy chủ quá tải (lỗi 503)
+                cac_mo_hinh = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-pro"]
+                response = None
+                loi_cuoi = ""
+                
+                for ten_model in cac_mo_hinh:
+                    try:
+                        response = client.models.generate_content(
+                            model=ten_model,
+                            contents=noi_dung_gui,
+                            config=types.GenerateContentConfig(
+                                system_instruction=CHI_DAN_HE_THONG,
+                                temperature=0.7
+                            )
+                        )
+                        if response:
+                            break
+                    except Exception as e_model:
+                        loi_cuoi = str(e_model)
+                        continue
+                
+                if not response:
+                    raise Exception(loi_cuoi)
+
                 tra_loi = response.text
                 st.markdown(tra_loi)
                 st.session_state.messages.append({"role": "assistant", "content": tra_loi})
 
-                # Phát âm thanh trực tiếp trên trình duyệt điện thoại/máy tính
                 if bat_loa:
                     audio_stream = tao_am_thanh(tra_loi)
                     if audio_stream:
                         st.audio(audio_stream, format="audio/mp3", autoplay=True)
             except Exception as e:
-                st.error(f"❌ Lỗi kết nối AI: {e}")
+                st.error(f"❌ Máy chủ đang bận, vui lòng thử lại sau vài giây. Chi tiết: {e}")
